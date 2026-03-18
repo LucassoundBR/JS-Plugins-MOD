@@ -1,10 +1,10 @@
-Reaper JS Plugins – MOD
+#Reaper JS Plugins – MOD
 
 Custom modifications of JKK Visualizer and BirdBird Global Sampler for REAPER.
 
 These modifications focus on improving usability, visualization clarity, and experimentation workflows for sound design and analysis.
 
-1. JKK Visualizer (by Junki Kim)
+# 1. JKK Visualizer (by Junki Kim)
 
 Improvements:
 Added new theme options in the editor.
@@ -18,19 +18,19 @@ Smoother spectral ballistics
 
 The behavior is closer to the spectral clarity seen in professional tools such as FabFilter Pro-Q.
 
-2. BirdBird Global Sampler
+# 2. BirdBird Global Sampler
 
 Replaced the default fade visualization with editable particle trails.
 Particles follow the playhead position in real time.
 Particle behavior automatically adapts to window size.
 
-Credits
+# Credits
 
 A huge thank you to Junki Kim and BirdBird for their incredible contributions and dedication to the REAPER community.
 
 These modifications are built on top of their original work.
 
-Requirements
+# Requirements
 
 You must already have the original plugins installed.
 
@@ -40,7 +40,7 @@ https://forum.cockos.com/showthread.php?p=2506514
 JKK Visualizer
 https://junkikimsound.gumroad.com/l/jkk_visualizer
 
-Installation
+# Installation
 
 Install the original plugins first.
 

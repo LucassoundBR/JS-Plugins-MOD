@@ -180,13 +180,29 @@ function draw(m, mouse_state, drag_info)
     end
 
 
-    --WAVEFORM
-    local wave_fade_len = theme.wave_fade_len
-    local wave_fade_alpha_intensity = theme.wave_fade_alpha_intensity
+    -- FORCE STANDARD FADE LENGTH FOR ALL THEMES
+    local wave_fade_len = 35 
+    local wave_fade_alpha_intensity = 1
     local draw_len = bw - 2
     reaper.gmem_write(8, draw_len)
-    local disp_buf_index = reaper.gmem_read(9)
+    
+    -- DARK VOID OVERLAY (Drawn to the RIGHT of the playhead BEFORE the waveform)
+    -- This ensures that when the waveform fades out, it fades into dark, even on bright themes.
+    if jsfx_existed > 0 then
+        for i = 1, wave_fade_len do
+            local shadow_x = wxp + i -- Corrected to be on the right (the gap side)
+            if shadow_x > margin + bw then shadow_x = shadow_x - bw end
+            
+            local norm_dist = i / wave_fade_len
+            local shadow_alpha = (1.0 - norm_dist^1.5) * 0.15 
+            
+            gfx.set(0.06, 0.06, 0.08, shadow_alpha) -- Dark charcoal color
+            gfx.line(shadow_x, margin, shadow_x, margin + bh)
+        end
+    end
 
+    --WAVEFORM
+    local disp_buf_index = reaper.gmem_read(9)
     local lx,ly
     for i = 0, draw_len do
         local t = i/draw_len
@@ -222,8 +238,9 @@ function draw(m, mouse_state, drag_info)
         
         --FADE
         if dist_to_writehead > 0 and dist_to_writehead <= wave_fade_len then
-            local n_fade = dist_to_writehead/wave_fade_len
-            n_fade = (n_fade * wave_fade_alpha_intensity) + 1 - wave_fade_alpha_intensity
+            local norm_dist = dist_to_writehead/wave_fade_len
+            local gap_defined_visibility = 0.0 
+            local n_fade = gap_defined_visibility + (1.0 - gap_defined_visibility) * (norm_dist^2 * wave_fade_alpha_intensity)
             alpha_mul_writehead = n_fade
         end
 
@@ -259,7 +276,28 @@ function draw(m, mouse_state, drag_info)
 
     --WRITEHEAD DRAWING
     if jsfx_existed > 0 then
-        gfx.set(theme.writer_col.r/256, theme.writer_col.g/256, theme.writer_col.b/256)
+        local col_r, col_g, col_b = theme.writer_col.r/256, theme.writer_col.g/256, theme.writer_col.b/256
+        
+        local p_col = {r = col_r, g = col_g, b = col_b}
+        if theme.rainbow_waveform_col then
+            p_col = palette(wxp/draw_len + reaper.time_precise()/10)
+            col_r, col_g, col_b = p_col.r, p_col.g, p_col.b
+        end
+
+        -- LAYERED NEON/GLOW EFFECT: 3-layer bloom/glow
+        -- 1. Wide and Dim
+        gfx.set(col_r, col_g, col_b, 0.15)
+        gfx.line(wxp-2, margin, wxp-2, bh + margin)
+        gfx.line(wxp, margin, wxp, bh + margin)
+        gfx.line(wxp+2, margin, wxp+2, bh + margin)
+
+        -- 2. Core Glow
+        gfx.set(col_r, col_g, col_b, 0.4)
+        gfx.line(wxp-1, margin, wxp-1, bh + margin)
+        gfx.line(wxp+1, margin, wxp+1, bh + margin)
+        
+        -- 3. The main central core line
+        gfx.set(col_r, col_g, col_b, 1.0) 
         gfx.line(wxp, margin, wxp, bh + margin)
 
         -- PARTICLE TRAIL (Using hijacked variables from Editor)
@@ -273,12 +311,6 @@ function draw(m, mouse_state, drag_info)
         local t_pow = theme.trail_pow
         if type(t_pow) ~= "number" or t_pow <= 0 then t_pow = 1.0 end
         local p_decay_base = t_pow / 400 -- Lower divisor means slider drastically affects fade 
-        
-        -- Get correct color (solid or rainbow)
-        local p_col = {r = theme.writer_col.r/256, g = theme.writer_col.g/256, b = theme.writer_col.b/256}
-        if theme.rainbow_waveform_col then
-            p_col = palette(wxp/draw_len + reaper.time_precise()/10)
-        end
         
         -- 1. Spawn new particles strictly to the left of the writehead
         local spawn_rate = math.max(2, math.floor(bh / 15)) 

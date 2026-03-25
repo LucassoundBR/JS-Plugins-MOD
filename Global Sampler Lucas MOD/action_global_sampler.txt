@@ -313,9 +313,12 @@ function draw(m, mouse_state, drag_info)
         local p_decay_base = t_pow / 400 -- Lower divisor means slider drastically affects fade 
         
         -- 1. Spawn new particles strictly to the left of the writehead
-        local spawn_rate = math.max(2, math.floor(bh / 15)) 
+        local max_particles = 400 -- Cap the total active particles to prevent stuttering
+        local spawn_rate = math.max(1, math.floor(bh / 25)) 
         
         for i = 1, spawn_rate do 
+            if #particles >= max_particles then break end -- Stop spawning if we hit the limit
+            
             table.insert(particles, {
                 x = wxp - 1,                           
                 y = margin + (math.random() * bh), 

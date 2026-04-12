@@ -792,7 +792,7 @@ end
                           gfx.mouse_y >= y and gfx.mouse_y <= y + h)
         local is_frozen = is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active
 
-        if w ~= w_last_w or h ~= w_last_h then
+        if h ~= w_last_h then
             gfx.dest = waterfall_canvas_id
             gfx.setimgdim(waterfall_canvas_id, -1, -1)
             gfx.setimgdim(waterfall_canvas_id, w, h)
@@ -818,8 +818,10 @@ end
         local num_bins = fft_size / 2
         local bin_range = num_bins - min_bin
 
-        local thresh_db = floor_db
-        local boost_db = (gain - 0.5) * 60.0
+        -- To avoid blowout, we use a balanced formula. 
+        -- Original thresh_db was -20 (very high). We give it some breathing room dynamically.
+        local thresh_db = -45     -- Start at -45dB
+        local boost_db = gain * 40.0 -- 0.0 to 1.0 maps to 0 to +40dB boost
 
         if not is_frozen then
             local col_data = {}
@@ -843,7 +845,7 @@ end
                 local hz = idx_float * hz_per_bin
                 local tilt_db = 0
                 if hz > 100 then
-                    tilt_db = 3.5 * math.log(hz / 100, 2)
+                    tilt_db = 2.0 * math.log(hz / 100, 2)
                 end
                 
                 col_data[y_px] = (20 * math.log(raw, 10)) + tilt_db + boost_db
@@ -853,6 +855,17 @@ end
                 w_last_col_data = col_data 
             end
 
+            -- Avoid resetting history on horizontal stretch
+            if h ~= w_last_h then
+                gfx.dest = waterfall_canvas_id
+                gfx.set(bg_r, bg_g, bg_b, 1)
+                gfx.rect(0, 0, 4000, h, 1)  -- Use a large width to ensure it clears
+                w_last_w = w
+                w_last_h = h
+                w_cursor_idx = 0
+                w_last_col_data = {}
+            end
+            
             gfx.dest = waterfall_canvas_id
             for s = 0, w_scan_speed - 1 do
                 local current_idx = (w_cursor_idx + s) % RES_W
@@ -1257,7 +1270,7 @@ end
                 elseif mod_id == 3 then target_gmem = 6 
                 elseif mod_id == 4 then target_gmem = 7 
                 elseif mod_id == 5 then target_gmem = 8 
-                elseif mod_id == 6 then target_gmem = 9
+                elseif mod_id == 6 then target_gmem = 6  -- Linked to Symbiote
                 end
 
                 if target_gmem then
@@ -1276,7 +1289,7 @@ end
             elseif mod_id == 3 then mod_raw_gain = reaper.gmem_read(6)
             elseif mod_id == 4 then mod_raw_gain = reaper.gmem_read(7)
             elseif mod_id == 5 then mod_raw_gain = reaper.gmem_read(8)
-            elseif mod_id == 6 then mod_raw_gain = reaper.gmem_read(9)
+            elseif mod_id == 6 then mod_raw_gain = reaper.gmem_read(6) -- Linked to Symbiote
             end
 
             local specific_gain = g_gain_min + (g_gain_max - g_gain_min) * mod_raw_gain

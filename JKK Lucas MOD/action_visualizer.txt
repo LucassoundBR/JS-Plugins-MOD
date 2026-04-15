@@ -118,7 +118,7 @@ end
         end
 
         -- Waterfall 전용 변수
-        local waterfall_canvas_id = 10
+        local waterfall_canvas_id = 1
         local w_cursor_idx = 0
         local w_last_w, w_last_h = 0, 0
         local w_last_col_data = {}
@@ -792,23 +792,22 @@ end
                           gfx.mouse_y >= y and gfx.mouse_y <= y + h)
         local is_frozen = is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active
 
-        local INTERNAL_W = 1024
-        local INTERNAL_H = 256
-
-        if w_last_w == 0 then
+        if h ~= w_last_h then
             gfx.dest = waterfall_canvas_id
             gfx.setimgdim(waterfall_canvas_id, -1, -1)
-            gfx.setimgdim(waterfall_canvas_id, INTERNAL_W, INTERNAL_H)
+            gfx.setimgdim(waterfall_canvas_id, w, h)
             gfx.set(bg_r, bg_g, bg_b, 1) 
-            gfx.rect(0, 0, INTERNAL_W, INTERNAL_H, 1)
-            w_last_w = 1
-            w_last_h = INTERNAL_H
+            gfx.rect(0, 0, w, h, 1)
+            w_last_w, w_last_h = w, h
             w_last_col_data = {}
             w_cursor_idx = 0
         end
 
-        local RES_W = INTERNAL_W
-        local RES_H = INTERNAL_H
+        local RES_W = math.floor(w) * 2
+        local RES_H = math.floor(h)
+        if RES_H < 10 then RES_H = 10 end
+        local block_w = w / RES_W
+        local block_h = h / RES_H
         local scale_exponent = 3.0 
 
         local srate = reaper.gmem_read(1)
@@ -820,6 +819,7 @@ end
         local bin_range = num_bins - min_bin
 
         -- To avoid blowout, we use a balanced formula. 
+        -- Original thresh_db was -20 (very high). We give it some breathing room dynamically.
         local thresh_db = -45     -- Start at -45dB
         local boost_db = gain * 40.0 -- 0.0 to 1.0 maps to 0 to +40dB boost
 
@@ -855,13 +855,25 @@ end
                 w_last_col_data = col_data 
             end
 
+            -- Avoid resetting history on horizontal stretch
+            if h ~= w_last_h then
+                gfx.dest = waterfall_canvas_id
+                gfx.set(bg_r, bg_g, bg_b, 1)
+                gfx.rect(0, 0, 4000, h, 1)  -- Use a large width to ensure it clears
+                w_last_w = w
+                w_last_h = h
+                w_cursor_idx = 0
+                w_last_col_data = {}
+            end
+            
             gfx.dest = waterfall_canvas_id
             for s = 0, w_scan_speed - 1 do
                 local current_idx = (w_cursor_idx + s) % RES_W
+                local screen_x = current_idx * block_w
                 local horiz_t = s / w_scan_speed
                 
                 gfx.set(bg_r, bg_g, bg_b, 1)
-                gfx.rect(current_idx, 0, 1, RES_H, 1)
+                gfx.rect(screen_x, 0, block_w + 1, h, 1)
 
                 for y_px = 0, RES_H - 1 do
                     local prev_db = w_last_col_data[y_px] or col_data[y_px]
@@ -888,7 +900,7 @@ end
                                 c_a = w_sptr2_a + (sptr3_a - w_sptr2_a) * t_c
                             end
                             gfx.set(c_r, c_g, c_b, c_a)
-                            gfx.rect(current_idx, y_px, 1, 1, 1)
+                            gfx.rect(screen_x, y_px * block_h, block_w + 0.5, block_h + 0.1, 1)
                         end
                     end
                 end
@@ -900,19 +912,10 @@ end
         gfx.set(1, 1, 1, 1)
         
         local advance = is_frozen and 0 or w_scan_speed
-        local skip = math.floor((w_cursor_idx + advance) % INTERNAL_W)
+        local split_x = (w_cursor_idx + advance) * block_w
         
-        local dest_ratio = w / INTERNAL_W
-        local src_w1 = INTERNAL_W - skip
-        local dest_w1 = src_w1 * dest_ratio
-        local dest_w2 = w - dest_w1
-        
-        gfx.blit(waterfall_canvas_id, 1, 0, skip, 0, src_w1, INTERNAL_H, x, y, dest_w1, h)
-        gfx.blit(waterfall_canvas_id, 1, 0, 0, 0, skip, INTERNAL_H, x + dest_w1, y, dest_w2, h)
-        
-        if not is_frozen then
-            w_cursor_idx = (w_cursor_idx + w_scan_speed) % INTERNAL_W
-        end
+        gfx.blit(waterfall_canvas_id, 1, 0, split_x, 0, w - split_x, h, x, y, w - split_x, h)
+        gfx.blit(waterfall_canvas_id, 1, 0, 0, 0, split_x, h, x + w - split_x, y, split_x, h)
 
         local function draw_freq_line(hz_val, label_text)
             local target_bin = hz_val * fft_size / srate

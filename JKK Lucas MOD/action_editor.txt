@@ -347,29 +347,25 @@ local ApplyTheme = (reaper.file_exists(theme_path) and dofile(theme_path).ApplyT
                 -- 1. Gonio Gain
                 local g_gain = reaper.gmem_read(MEM_GAIN_GONIO)
                 local g_changed, g_new = reaper.ImGui_SliderDouble(ctx, "Gonio Gain", g_gain, 0.0, 1.0, "%.3f")
-                if g_changed then reaper.gmem_write(MEM_GAIN_GONIO, g_new) end
-                if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then SaveAllSettings() end
+                if g_changed then reaper.gmem_write(MEM_GAIN_GONIO, g_new); SaveAllSettings() end
                 if reaper.ImGui_IsItemHovered(ctx) then shared_info.hovered_id = "GAIN_GONIO" end
 
                 -- 2. Symbiote Gain
                 local sym_gain = reaper.gmem_read(MEM_GAIN_SYMBIOTE)
                 local s_changed, s_new = reaper.ImGui_SliderDouble(ctx, "Symbiote Gain", sym_gain, 0.0, 1.0, "%.3f")
-                if s_changed then reaper.gmem_write(MEM_GAIN_SYMBIOTE, s_new) end
-                if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then SaveAllSettings() end
+                if s_changed then reaper.gmem_write(MEM_GAIN_SYMBIOTE, s_new); SaveAllSettings() end
                 if reaper.ImGui_IsItemHovered(ctx) then shared_info.hovered_id = "GAIN_SYMBIOTE" end
 
                 -- 3. Scope Gain
                 local scp_gain = reaper.gmem_read(MEM_GAIN_SCOPE)
                 local scp_changed, scp_new = reaper.ImGui_SliderDouble(ctx, "Scope Gain", scp_gain, 0.0, 1.0, "%.3f")
-                if scp_changed then reaper.gmem_write(MEM_GAIN_SCOPE, scp_new) end
-                if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then SaveAllSettings() end
+                if scp_changed then reaper.gmem_write(MEM_GAIN_SCOPE, scp_new); SaveAllSettings() end
                 if reaper.ImGui_IsItemHovered(ctx) then shared_info.hovered_id = "GAIN_SCOPE" end
 
                 -- 4. Spectrum Gain
                 local spec_gain = reaper.gmem_read(MEM_GAIN_SPECTRUM)
                 local sp_changed, sp_new = reaper.ImGui_SliderDouble(ctx, "Spectrum Gain", spec_gain, 0.0, 1.0, "%.3f")
-                if sp_changed then reaper.gmem_write(MEM_GAIN_SPECTRUM, sp_new) end
-                if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then SaveAllSettings() end
+                if sp_changed then reaper.gmem_write(MEM_GAIN_SPECTRUM, sp_new); SaveAllSettings() end
                 if reaper.ImGui_IsItemHovered(ctx) then shared_info.hovered_id = "GAIN_SPECTRUM" end
 
                 local force_save = false

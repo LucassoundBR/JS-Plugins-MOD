@@ -106,11 +106,13 @@ slider5:0.25<0,1,0.001>Spectrum Floor (Macro %)
     last_sr = srate;
 
 @slider
-    slider1 != last_slider1 ? ( gmem[2] = slider1; last_slider1 = slider1; ); // Gonio
-    slider3 != last_slider3 ? ( gmem[6] = slider3; last_slider3 = slider3; ); // Scope
-    slider2 != last_slider2 ? ( gmem[7] = slider2; last_slider2 = slider2; ); // Symbiote
-    slider4 != last_slider4 ? ( gmem[8] = slider4; last_slider4 = slider4; ); // Spectrum
-    slider5 != last_slider5 ? ( gmem[3] = slider5; last_slider5 = slider5; ); // Floor
+    // Only update cache so @block doesn't re-trigger. 
+    // gmem writes are handled by @block sync (Lua Editor is the source of truth for gmem).
+    last_slider1 = slider1;
+    last_slider2 = slider2;
+    last_slider3 = slider3;
+    last_slider4 = slider4;
+    last_slider5 = slider5;
 
 @block
     gmem[1] = srate;

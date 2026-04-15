@@ -53,7 +53,7 @@ end
 
 local function SaveWidths()
     local str = string.format("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f", 
-        module_widths[1], module_widths[2], module_widths[3], module_widths[4], module_widths[5], module_widths[6] or 0.15)
+        module_widths[1], module_widths[2], module_widths[3], module_widths[4], module_widths[5], module_widths[6])
     reaper.SetExtState("JKK_Visualizer", "ModuleWidths", str, true)
 end
 
@@ -117,12 +117,13 @@ end
             spec_peak_times[i] = 0
         end
 
-        -- Waterfall 전용 변수
+        -- Waterfall (fixed-width offscreen canvas, height matches screen)
         local waterfall_canvas_id = 1
+        local SPEC_RES_W = 800    -- fixed number of time columns
         local w_cursor_idx = 0
-        local w_last_w, w_last_h = 0, 0
         local w_last_col_data = {}
         local w_scan_speed = 12
+        local w_canvas_h = 0      -- tracks current canvas height
 
 ----------------------------------------------------------
 -- Functions: Features (LUFS, Gonio, Symbiote, Scope, Spetrum)
@@ -792,23 +793,22 @@ end
                           gfx.mouse_y >= y and gfx.mouse_y <= y + h)
         local is_frozen = is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active
 
-        if h ~= w_last_h then
+        local canvas_h = math.max(10, math.floor(h))
+
+        -- Recreate canvas when height changes (keeps width fixed for history)
+        if canvas_h ~= w_canvas_h then
             gfx.dest = waterfall_canvas_id
             gfx.setimgdim(waterfall_canvas_id, -1, -1)
-            gfx.setimgdim(waterfall_canvas_id, w, h)
-            gfx.set(bg_r, bg_g, bg_b, 1) 
-            gfx.rect(0, 0, w, h, 1)
-            w_last_w, w_last_h = w, h
-            w_last_col_data = {}
+            gfx.setimgdim(waterfall_canvas_id, SPEC_RES_W, canvas_h)
+            gfx.set(bg_r, bg_g, bg_b, 1)
+            gfx.rect(0, 0, SPEC_RES_W, canvas_h, 1)
+            gfx.dest = -1
+            w_canvas_h = canvas_h
             w_cursor_idx = 0
+            w_last_col_data = {}
         end
 
-        local RES_W = math.floor(w) * 2
-        local RES_H = math.floor(h)
-        if RES_H < 10 then RES_H = 10 end
-        local block_w = w / RES_W
-        local block_h = h / RES_H
-        local scale_exponent = 3.0 
+        local scale_exponent = 3.0
 
         local srate = reaper.gmem_read(1)
         if srate <= 0 then srate = 48000 end
@@ -818,67 +818,57 @@ end
         local num_bins = fft_size / 2
         local bin_range = num_bins - min_bin
 
-        -- To avoid blowout, we use a balanced formula. 
-        -- Original thresh_db was -20 (very high). We give it some breathing room dynamically.
-        local thresh_db = -45     -- Start at -45dB
-        local boost_db = gain * 40.0 -- 0.0 to 1.0 maps to 0 to +40dB boost
+        local thresh_db = -45
+        local boost_db = gain * 40.0
 
         if not is_frozen then
+            -- Sample frequency data into canvas_h rows (1:1 with screen pixels)
             local col_data = {}
-            for y_px = 0, RES_H - 1 do
-                local norm_y = (RES_H - 1 - y_px) / RES_H
+            for y_px = 0, canvas_h - 1 do
+                local norm_y = (canvas_h - 1 - y_px) / canvas_h
                 local idx_float = min_bin + (bin_range * (norm_y ^ scale_exponent))
                 local i1 = math.floor(idx_float)
                 local t = idx_float - i1
                 local i0 = math.max(0, i1 - 1)
                 local i2 = math.min(num_bins - 1, i1 + 1)
                 local i3 = math.min(num_bins - 1, i1 + 2)
-                
+
                 local p0 = reaper.gmem_read(300000 + i0)
                 local p1 = reaper.gmem_read(300000 + i1)
                 local p2 = reaper.gmem_read(300000 + i2)
                 local p3 = reaper.gmem_read(300000 + i3)
-                
+
                 local raw = interpolate_cubic(p0, p1, p2, p3, t)
                 if raw < 1e-10 then raw = 1e-10 end
-                
+
                 local hz = idx_float * hz_per_bin
                 local tilt_db = 0
                 if hz > 100 then
                     tilt_db = 2.0 * math.log(hz / 100, 2)
                 end
-                
+
                 col_data[y_px] = (20 * math.log(raw, 10)) + tilt_db + boost_db
             end
 
-            if w_last_col_data[0] == nil then 
-                w_last_col_data = col_data 
+            if w_last_col_data[0] == nil then
+                w_last_col_data = col_data
             end
 
-            -- Avoid resetting history on horizontal stretch
-            if h ~= w_last_h then
-                gfx.dest = waterfall_canvas_id
-                gfx.set(bg_r, bg_g, bg_b, 1)
-                gfx.rect(0, 0, 4000, h, 1)  -- Use a large width to ensure it clears
-                w_last_w = w
-                w_last_h = h
-                w_cursor_idx = 0
-                w_last_col_data = {}
-            end
-            
+            -- Draw columns to the fixed-width canvas (1px per column, 1px per row)
             gfx.dest = waterfall_canvas_id
             for s = 0, w_scan_speed - 1 do
-                local current_idx = (w_cursor_idx + s) % RES_W
-                local screen_x = current_idx * block_w
+                local current_idx = (w_cursor_idx + s) % SPEC_RES_W
                 local horiz_t = s / w_scan_speed
-                
-                gfx.set(bg_r, bg_g, bg_b, 1)
-                gfx.rect(screen_x, 0, block_w + 1, h, 1)
 
-                for y_px = 0, RES_H - 1 do
+                -- Clear this 1px column
+                gfx.set(bg_r, bg_g, bg_b, 1)
+                gfx.rect(current_idx, 0, 1, canvas_h, 1)
+
+                -- Draw each frequency row as a 1px rect
+                for y_px = 0, canvas_h - 1 do
                     local prev_db = w_last_col_data[y_px] or col_data[y_px]
                     local interp_db = prev_db * (1 - horiz_t) + col_data[y_px] * horiz_t
-                    
+
                     if interp_db >= thresh_db then
                         local effective_db = (interp_db - thresh_db)
                         local intensity = effective_db / 60.0
@@ -900,34 +890,48 @@ end
                                 c_a = w_sptr2_a + (sptr3_a - w_sptr2_a) * t_c
                             end
                             gfx.set(c_r, c_g, c_b, c_a)
-                            gfx.rect(screen_x, y_px * block_h, block_w + 0.5, block_h + 0.1, 1)
+                            gfx.rect(current_idx, y_px, 1, 1, 1)
                         end
                     end
                 end
             end
+            gfx.dest = -1
             w_last_col_data = col_data
         end
 
+        -- Blit canvas to screen: vertical 1:1, horizontal scaled
         gfx.dest = -1
         gfx.set(1, 1, 1, 1)
-        
-        local advance = is_frozen and 0 or w_scan_speed
-        local split_x = (w_cursor_idx + advance) * block_w
-        
-        gfx.blit(waterfall_canvas_id, 1, 0, split_x, 0, w - split_x, h, x, y, w - split_x, h)
-        gfx.blit(waterfall_canvas_id, 1, 0, 0, 0, split_x, h, x + w - split_x, y, split_x, h)
 
+        local advance = is_frozen and 0 or w_scan_speed
+        local split_x = (w_cursor_idx + advance) % SPEC_RES_W
+
+        -- Right portion (older data) → left side of module
+        local src_right_w = SPEC_RES_W - split_x
+        local dst_right_w = (src_right_w / SPEC_RES_W) * w
+        if src_right_w > 0 then
+            gfx.blit(waterfall_canvas_id, 1, 0,
+                split_x, 0, src_right_w, canvas_h,
+                x, y, dst_right_w, h)
+        end
+
+        -- Left portion (newer data) → right side of module
+        if split_x > 0 then
+            gfx.blit(waterfall_canvas_id, 1, 0,
+                0, 0, split_x, canvas_h,
+                x + dst_right_w, y, w - dst_right_w, h)
+        end
+
+        -- Frequency guide lines (drawn on screen, not canvas)
         local function draw_freq_line(hz_val, label_text)
             local target_bin = hz_val * fft_size / srate
             if target_bin < min_bin then return end
             local norm_y = ((target_bin - min_bin) / bin_range) ^ (1 / scale_exponent)
             local line_y = y + (1 - norm_y) * h
-            
-            -- 👇 선의 투명도(Alpha)를 30% 수준으로 확 낮춰서 가늘게 보이도록 수정
-            gfx.set(line_r, line_g, line_b, line_a / 2) 
+
+            gfx.set(line_r, line_g, line_b, line_a / 2)
             gfx.line(x, line_y, x + w, line_y)
-            
-            -- 텍스트는 원래 밝기 그대로 선명하게 유지
+
             gfx.set(text_r, text_g, text_b, text_a / 2)
             gfx.x = x + 5; gfx.y = line_y - 12
             gfx.drawstr(label_text)
@@ -936,20 +940,21 @@ end
         draw_freq_line(1000, "1k")
         draw_freq_line(100, "100")
 
+        -- Hover tooltip
         if is_hover then
             local norm_y = 1 - ((gfx.mouse_y - y) / h)
             local idx_float = min_bin + (bin_range * (norm_y ^ scale_exponent))
             local hz = idx_float * srate / fft_size
             local note = freq_to_note(hz)
             local info_text = string.format("%.0f Hz (%s)", hz, note)
-            
+
             gfx.setfont(1, "Arial", base_title_size * g_font_scale)
             local tw, th = gfx.measurestr(info_text)
             local tx, ty = gfx.mouse_x + 10, gfx.mouse_y - 20
             if tx + tw > gfx.w then tx = gfx.mouse_x - tw - 10 end
             if ty < 0 then ty = gfx.mouse_y + 20 end
-            
-            gfx.set(bg_r, bg_g, bg_b, 0.9) 
+
+            gfx.set(bg_r, bg_g, bg_b, 0.9)
             gfx.rect(tx - 4, ty - 2, tw + 8, th + 4, 1)
             gfx.set(line_r, line_g, line_b, 0.5)
             gfx.rect(tx - 4, ty - 2, tw + 8, th + 4, 0)
@@ -957,22 +962,24 @@ end
             gfx.set(text_r, text_g, text_b, text_a)
             gfx.x, gfx.y = tx, ty
             gfx.drawstr(info_text)
-            
+
             gfx.set(line_r, line_g, line_b, 0.3)
             gfx.line(x, gfx.mouse_y, x + w, gfx.mouse_y)
         end
 
+        -- Title
         gfx.set(text_r, text_g, text_b, text_a)
         gfx.x, gfx.y = x + 5, y + 5
         gfx.drawstr("Spectrogram")
 
+        -- Freeze indicator + cursor advance
         if is_frozen then
             gfx.set(peak_r, peak_g, peak_b, peak_a)
             local fw, fh = gfx.measurestr("FREEZE")
             gfx.x, gfx.y = x + w - fw - 5, y + 5
             gfx.drawstr("FREEZE")
         else
-            w_cursor_idx = (w_cursor_idx + w_scan_speed) % RES_W
+            w_cursor_idx = (w_cursor_idx + w_scan_speed) % SPEC_RES_W
         end
     end
 

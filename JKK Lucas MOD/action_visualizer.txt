@@ -609,17 +609,21 @@ end
         if srate == 0 then srate = 48000 end
         local now = reaper.time_precise()
         
-        local target_max_hz = 24000
+        local target_max_hz = 22000
         if srate / 2 < target_max_hz then target_max_hz = srate / 2 end
 
+        local min_hz = 20
+        local min_k = math.max(1, min_hz * fft_size / srate)
         local max_k = target_max_hz * fft_size / srate
-        local k_max_log = math.log(max_k)
+        local log_min_k = math.log(min_k)
+        local log_max_k = math.log(max_k)
+        local k_log_range = log_max_k - log_min_k
         
         gfx.set(line_r, line_g, line_b, line_a)
         
         local ox, oy = draw_x, y + h
         local pox, poy = draw_x, y + h
-        local k = 1
+        local k = min_k
         while k <= max_k do
             local k_int = math.floor(k)
             local k_frac = k - k_int
@@ -675,7 +679,7 @@ end
             local pt = math.max(0, math.min(1, pt_raw)) ^ 1.5
             local pdy = y + h - (pt * h)
 
-            local x_norm = math.log(k) / k_max_log
+            local x_norm = (math.log(k) - log_min_k) / k_log_range
             local dx = draw_x + (x_norm * draw_w)
             
             local color_t = math.min(1.0, t * g_color_sensitivity)
@@ -697,12 +701,12 @@ end
             end
             
             gfx.set(sptr_r, sptr_g, sptr_b, sptr_a)
-            if k > 1 then
+            if k > min_k then
                 gfx.triangle(ox, y + h, ox, oy, dx, dy, dx, y + h)
             end
             
             gfx.set(peak_r, peak_g, peak_b, peak_a)
-            if k > 1 then
+            if k > min_k then
                 gfx.line(pox, poy, dx, pdy)
             end
             
@@ -724,9 +728,9 @@ end
         local labels = {"100", "1k", "10k"}
         for i, freq in ipairs(freqs) do
             local k = freq * (fft_size) / srate
-            if k > 0 then
-                local x_norm = math.log(k) / k_max_log
-                if x_norm > 0 and x_norm < 1 then
+            if k >= min_k and k <= max_k then
+                local x_norm = (math.log(k) - log_min_k) / k_log_range
+                if x_norm >= 0 and x_norm <= 1 then
                     local gx = draw_x + x_norm * draw_w
                     gfx.line(gx, y, gx, y + h)
                     gfx.x, gfx.y = gx + 2, y + h - 22
@@ -739,7 +743,7 @@ end
             -- Clamp mouse position to within the drawable area to prevent out-of-bounds frequency readings
             local clamped_mouse_x = math.max(draw_x, math.min(draw_x + draw_w, gfx.mouse_x))
             local x_norm = (clamped_mouse_x - draw_x) / draw_w
-            local k_val = math.exp(x_norm * k_max_log)
+            local k_val = math.exp(log_min_k + x_norm * k_log_range)
             local hz = k_val * srate / fft_size
             
             local note = freq_to_note(hz)
@@ -830,15 +834,19 @@ end
             w_canvas_h = canvas_h
         end
 
-        local scale_exponent = 3.0
-
         local srate = reaper.gmem_read(1)
         if srate <= 0 then srate = 48000 end
-        local min_hz = 50
+        local target_max_hz = 22000
+        if srate / 2 < target_max_hz then target_max_hz = srate / 2 end
+        local min_hz = 20
         local hz_per_bin = srate / fft_size
-        local min_bin = min_hz / hz_per_bin
+        local min_bin = math.max(1, min_hz / hz_per_bin)
+        local max_bin = target_max_hz / hz_per_bin
+        local log_min_bin = math.log(min_bin)
+        local log_max_bin = math.log(max_bin)
+        local log_range = log_max_bin - log_min_bin
+        
         local num_bins = fft_size / 2
-        local bin_range = num_bins - min_bin
 
         local thresh_db = -45
         local boost_db = (gain - 0.7) * 40.0
@@ -854,7 +862,7 @@ end
             local col_data = {}
             for y_px = 0, canvas_h - 1 do
                 local norm_y = (canvas_h - 1 - y_px) / canvas_h
-                local idx_float = min_bin + (bin_range * (norm_y ^ scale_exponent))
+                local idx_float = math.exp(log_min_bin + norm_y * log_range)
                 local i1 = math.floor(idx_float)
                 local t = idx_float - i1
                 local i0 = math.max(0, i1 - 1)
@@ -953,8 +961,8 @@ end
         -- Frequency guide lines (drawn on screen, not canvas)
         local function draw_freq_line(hz_val, label_text)
             local target_bin = hz_val * fft_size / srate
-            if target_bin < min_bin then return end
-            local norm_y = ((target_bin - min_bin) / bin_range) ^ (1 / scale_exponent)
+            if target_bin < min_bin or target_bin > max_bin then return end
+            local norm_y = (math.log(target_bin) - log_min_bin) / log_range
             local line_y = y + (1 - norm_y) * h
 
             gfx.set(line_r, line_g, line_b, line_a / 2)
@@ -971,7 +979,7 @@ end
         -- Hover tooltip
         if is_hover then
             local norm_y = 1 - ((gfx.mouse_y - y) / h)
-            local idx_float = min_bin + (bin_range * (norm_y ^ scale_exponent))
+            local idx_float = math.exp(log_min_bin + norm_y * log_range)
             local hz = idx_float * srate / fft_size
             local note = freq_to_note(hz)
             local info_text = string.format("%.0f Hz (%s)", hz, note)

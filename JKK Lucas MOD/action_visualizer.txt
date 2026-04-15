@@ -142,7 +142,7 @@ end
         
         local cx = x + w * 0.5
         local unit_h = h / 2 
-        gfx.setfont(1, "Arial", base_label_size * g_font_scale)
+        gfx.setfont(1, "Arial", math.floor(base_label_size * g_font_scale + 0.5))
 
         -- === [상단: MOMENTARY (+ PEAK)] ===
         local m_py = y
@@ -153,13 +153,13 @@ end
         gfx.drawstr(m_lab)
 
         local m_str = (mom_val <= -100) and "- Inf" or string.format("%.1f", mom_val)
-        gfx.setfont(2, "Arial", base_val_size * g_font_scale, "b")
+        gfx.setfont(2, "Arial", math.floor(base_val_size * g_font_scale + 0.5), "b")
         gfx.set(scp2_r, scp2_g, scp2_b, scp2_a)
         local sw, sh = gfx.measurestr(m_str)
         gfx.x, gfx.y = cx - sw * 0.5, m_py + unit_h * 0.35
         gfx.drawstr(m_str)
 
-        gfx.setfont(1, "Arial", base_peak_size * g_font_scale, "b")
+        gfx.setfont(1, "Arial", math.floor(base_peak_size * g_font_scale + 0.5), "b")
         gfx.set(scp3_r, scp3_g, scp3_b, scp3_a )
         local p_str = (mom_peak <= -100) and "- Inf" or string.format("%.1f", mom_peak)
         local pw, ph = gfx.measurestr(p_str)
@@ -171,7 +171,7 @@ end
         gfx.set(line_r, line_g, line_b, line_a)
         gfx.line(x + 10, s_py + 8, x + w - 10, s_py + 8) 
 
-        gfx.setfont(1, "Arial", base_label_size * g_font_scale) 
+        gfx.setfont(1, "Arial", math.floor(base_label_size * g_font_scale + 0.5)) 
         gfx.set(text_r, text_g, text_b, text_a)
         local s_lab = "SHORT-TERM"
         local slw, slh = gfx.measurestr(s_lab)
@@ -179,13 +179,13 @@ end
         gfx.drawstr(s_lab)
 
         local s_str = (short_val <= -100) and "- Inf" or string.format("%.1f", short_val)
-        gfx.setfont(2, "Arial", base_val_size * g_font_scale, "b")
+        gfx.setfont(2, "Arial", math.floor(base_val_size * g_font_scale + 0.5), "b")
         gfx.set(scp2_r, scp2_g, scp2_b, scp2_a)
         local ssw, ssh = gfx.measurestr(s_str)
         gfx.x, gfx.y = cx - ssw * 0.5, s_py + unit_h * 0.45
         gfx.drawstr(s_str)
     
-        gfx.setfont(1, "Arial", base_title_size * g_font_scale)
+        gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
 
         if gfx.mouse_cap == 1 and not drag_state.active then
             if gfx.mouse_x >= x + 5 and gfx.mouse_x <= x + w - 5 and 
@@ -325,7 +325,7 @@ end
 
         gfx.rect(indicator_x - 1, bar_y - 2, 3, bar_h + 4, 1)
 
-        gfx.setfont(1, "Arial", (base_title_size - 4) * g_font_scale) 
+        gfx.setfont(1, "Arial", math.floor((base_title_size - 4) * g_font_scale + 0.5)) 
         local label_padding = 5 
 
         local tw_minus, th_minus = gfx.measurestr("-1")
@@ -339,7 +339,7 @@ end
         gfx.drawstr("+1")
 
         gfx.set(text_r, text_g, text_b, text_a)
-        gfx.setfont(1, "Arial", base_title_size * g_font_scale)
+        gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
         gfx.x, gfx.y = x + 5, y + 5
         gfx.drawstr("Gonio")
     end
@@ -474,6 +474,7 @@ end
         gfx.line(cx+pp.dx, cy+pp.dy, cx+shape_points[0].dx, cy+shape_points[0].dy)
 
         gfx.set(text_r, text_g, text_b, text_a)
+        gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
         gfx.x, gfx.y = x + 5, y + 5
         gfx.drawstr("Symbiote")
     end
@@ -572,6 +573,7 @@ end
             end
             
             gfx.set(text_r, text_g, text_b, text_a)
+            gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
             gfx.x, gfx.y = x + 5, y + 5
             gfx.drawstr("Scope")
         end
@@ -758,7 +760,7 @@ end
             local note = freq_to_note(hz)
             local info_text = string.format("%.0f Hz (%s)  |  %.1f dB", hz, note, dbfs_val)
             
-            gfx.setfont(1, "Arial", (base_title_size) * g_font_scale)
+            gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
             local tw, th = gfx.measurestr(info_text)
             local tx, ty = gfx.mouse_x + 10, gfx.mouse_y - 20
             
@@ -779,10 +781,10 @@ end
             gfx.line(clamped_mouse_x, y, clamped_mouse_x, y + h) -- Vertical line
             gfx.line(draw_x, clamped_mouse_y, draw_x + draw_w, clamped_mouse_y) -- Horizontal line
             
-            gfx.setfont(1, "Arial", base_title_size * g_font_scale)
         end
 
         gfx.set(text_r, text_g, text_b, text_a)
+        gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
         gfx.x, gfx.y = x + 5, y + 5
         gfx.drawstr("Spectrum")
 
@@ -994,7 +996,7 @@ end
             local note = freq_to_note(hz)
             local info_text = string.format("%.0f Hz (%s)", hz, note)
 
-            gfx.setfont(1, "Arial", base_title_size * g_font_scale)
+            gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
             local tw, th = gfx.measurestr(info_text)
             local tx, ty = gfx.mouse_x + 10, gfx.mouse_y - 20
             if tx + tw > gfx.w then tx = gfx.mouse_x - tw - 10 end
@@ -1015,6 +1017,7 @@ end
 
         -- Title
         gfx.set(text_r, text_g, text_b, text_a)
+        gfx.setfont(1, "Arial", math.floor(base_title_size * g_font_scale + 0.5))
         gfx.x, gfx.y = x + 5, y + 5
         gfx.drawstr("Spectrogram")
 

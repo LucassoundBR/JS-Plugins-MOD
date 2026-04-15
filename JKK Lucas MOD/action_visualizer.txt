@@ -605,15 +605,15 @@ end
         end
 
         local range = ceil - floor
+
         local srate = reaper.gmem_read(1)
         if srate == 0 then srate = 48000 end
         local now = reaper.time_precise()
         
-        local target_max_hz = 22000
+        local target_max_hz = 24000
         if srate / 2 < target_max_hz then target_max_hz = srate / 2 end
 
-        local min_hz = 20
-        local min_k = math.max(1, min_hz * fft_size / srate)
+        local min_k = 1 -- Reverted to exactly k=1 (min physical bin)
         local max_k = target_max_hz * fft_size / srate
         local log_min_k = math.log(min_k)
         local log_max_k = math.log(max_k)
@@ -740,21 +740,30 @@ end
         end
         
         if is_hover then
-            -- Clamp mouse position to within the drawable area to prevent out-of-bounds frequency readings
+            -- Clamp mouse position to within the drawable area
             local clamped_mouse_x = math.max(draw_x, math.min(draw_x + draw_w, gfx.mouse_x))
+            local clamped_mouse_y = math.max(y, math.min(y + h, gfx.mouse_y))
+            
             local x_norm = (clamped_mouse_x - draw_x) / draw_w
             local k_val = math.exp(log_min_k + x_norm * k_log_range)
             local hz = k_val * srate / fft_size
             
+            -- Calculate precise dB at the cursor height
+            local t_visual = (y + h - clamped_mouse_y) / h
+            local t_raw = t_visual ^ (1 / 1.5)
+            local raw_db_val = floor + t_raw * range
+            -- Subtract 57.3 dB offset (JSFX Blackman-Harris coherent gain correction) to approximate true dBFS
+            local dbfs_val = raw_db_val - 57.3
+            
             local note = freq_to_note(hz)
-            local info_text = string.format("%.0f Hz (%s)", hz, note)
+            local info_text = string.format("%.0f Hz (%s)  |  %.1f dB", hz, note, dbfs_val)
             
             gfx.setfont(1, "Arial", (base_title_size) * g_font_scale)
             local tw, th = gfx.measurestr(info_text)
             local tx, ty = gfx.mouse_x + 10, gfx.mouse_y - 20
             
-            if tx + tw > gfx.w then tx = gfx.mouse_x - tw - 10 end
-            if ty < 0 then ty = gfx.mouse_y + 20 end
+            if tx + tw > x + w then tx = gfx.mouse_x - tw - 10 end
+            if ty < y then ty = gfx.mouse_y + 20 end
             
             gfx.set(bg_r, bg_g, bg_b, 0.9) 
             gfx.rect(tx - 4, ty - 2, tw + 8, th + 4, 1)
@@ -767,7 +776,8 @@ end
             gfx.drawstr(info_text)
             
             gfx.set(line_r, line_g, line_b, 0.3)
-            gfx.line(clamped_mouse_x, y, clamped_mouse_x, y + h)
+            gfx.line(clamped_mouse_x, y, clamped_mouse_x, y + h) -- Vertical line
+            gfx.line(draw_x, clamped_mouse_y, draw_x + draw_w, clamped_mouse_y) -- Horizontal line
             
             gfx.setfont(1, "Arial", base_title_size * g_font_scale)
         end
@@ -836,11 +846,11 @@ end
 
         local srate = reaper.gmem_read(1)
         if srate <= 0 then srate = 48000 end
-        local target_max_hz = 22000
+        local target_max_hz = 24000
         if srate / 2 < target_max_hz then target_max_hz = srate / 2 end
-        local min_hz = 20
+        -- Reverted to min_bin = 1 to match Spectrum exactly
         local hz_per_bin = srate / fft_size
-        local min_bin = math.max(1, min_hz / hz_per_bin)
+        local min_bin = 1
         local max_bin = target_max_hz / hz_per_bin
         local log_min_bin = math.log(min_bin)
         local log_max_bin = math.log(max_bin)

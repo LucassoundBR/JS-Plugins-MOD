@@ -99,8 +99,8 @@ slider5:0.25<0,1,0.001>Spectrum Floor (Macro %)
     audio_buf = 900000; // 최근 4096개 원본 오디오를 뺑뺑이로 담아둘 새 원형 버퍼 번지
     audio_idx = 0;
 
-    // --- Initialize bin for 22kHz ---
-    target_freq = 22000;
+    // --- Initialize bin for 24kHz ---
+    target_freq = 24000;
     max_bin = floor(target_freq * fft_size / srate);
     max_bin > (fft_size / 2) ? max_bin = fft_size / 2;
     last_sr = srate;
@@ -159,8 +159,8 @@ slider5:0.25<0,1,0.001>Spectrum Floor (Macro %)
         i_win_len = 1 / (m_win_cnt * win_len);
         i_win_len2 = 1 / (s_win_cnt * win_len);
         
-        // --- Calculate bin for 22kHz ---
-        target_freq = 22000;
+        // --- Calculate bin for 24kHz ---
+        target_freq = 24000;
         max_bin = floor(target_freq * fft_size / srate);
         max_bin > (fft_size / 2) ? max_bin = fft_size / 2;
         
@@ -207,14 +207,14 @@ slider5:0.25<0,1,0.001>Spectrum Floor (Macro %)
         
         k = 0;
         
-        // --- Loop only up to 22kHz ---
+        // --- Loop only up to 24kHz ---
         loop(max_bin,
             re = 700000[k*2]; im = 700000[k*2+1];
             gmem[300000 + k] = sqrt(re*re + im*im);
             k += 1;
         );
         
-        // Zero out the unused bins above 22kHz
+        // Zero out the unused bins above 24kHz
         loop((fft_size/2) - max_bin,
             gmem[300000 + k] = 0;
             k += 1;

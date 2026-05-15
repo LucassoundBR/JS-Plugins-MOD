@@ -606,7 +606,7 @@ end
         
         local is_hover = (gfx.mouse_x >= x + 5 and gfx.mouse_x <= x + w - 5 and 
                       gfx.mouse_y >= y and gfx.mouse_y <= y + h)
-        local is_frozen = is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active
+        local is_frozen = (is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active) or g_is_standby
         
         if is_hover and not is_frozen then
             area_decay_rate = 1.0 * g_signal_release
@@ -813,7 +813,7 @@ end
     function draw_spectrogram(x, y, w, h, gain, floor_db)
         local is_hover = (gfx.mouse_x >= x and gfx.mouse_x <= x + w and 
                           gfx.mouse_y >= y and gfx.mouse_y <= y + h)
-        local is_frozen = is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active
+        local is_frozen = (is_hover and (gfx.mouse_cap & 1 == 1) and not drag_state.active) or g_is_standby
 
         local canvas_h = math.max(10, math.floor(h))
 
@@ -1225,12 +1225,26 @@ end
 ----------------------------------------------------------
 -- UI Loops
 ----------------------------------------------------------
+    local last_signal_time = reaper.time_precise()
+    local g_is_standby = false
+    local target_fps = 45
+    local frame_interval = 1.0 / target_fps
+    local last_frame_time = reaper.time_precise()
+
     function run()
         local char = gfx.getchar()
         if gfx.getchar() == 27 then return end 
         if char == 32 then
             reaper.Main_OnCommand(40044, 0) -- Transport: Play/stop
         end
+
+        -- FPS Limiter: skip rendering if not enough time has elapsed
+        local current_time = reaper.time_precise()
+        if (current_time - last_frame_time) < frame_interval then
+            reaper.defer(run)
+            return
+        end
+        last_frame_time = current_time
         
         local left_click = (gfx.mouse_cap & 1 == 1)
         local just_clicked = left_click and not last_left_click
@@ -1274,6 +1288,14 @@ end
                 reaper.gmem_write(mem, current_gain)
             end
         end
+
+        -- Standby Detection: freeze modules when no audio and no mouse for 2 seconds
+        local mom_val = reaper.gmem_read(20)
+        local is_mouse_in = (gfx.mouse_x >= 0 and gfx.mouse_x <= gfx.w and gfx.mouse_y >= 0 and gfx.mouse_y <= gfx.h)
+        if mom_val > -100 or is_mouse_in then
+            last_signal_time = current_time
+        end
+        g_is_standby = (current_time - last_signal_time) > 2.0
 
         local s2 = reaper.gmem_read(3)
         local floor = spec_floor_min + (spec_floor_max - spec_floor_min) * s2
